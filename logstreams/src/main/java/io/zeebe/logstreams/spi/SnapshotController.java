@@ -39,6 +39,12 @@ public interface SnapshotController extends AutoCloseable {
    */
   void moveValidSnapshot(long lowerBoundSnapshotPosition) throws IOException;
 
+  /** Replicates the latest valid snapshot. */
+  void replicateLatestSnapshot();
+
+  /** Registers to consumes replicated snapshots. */
+  void consumeReplicatedSnapshots();
+
   /**
    * Recovers the state from the latest snapshot and returns the lower bound snapshot position.
    *

@@ -41,8 +41,8 @@ import io.zeebe.logstreams.impl.service.StreamProcessorService;
 import io.zeebe.logstreams.log.LogStreamRecordWriter;
 import io.zeebe.logstreams.log.LoggedEvent;
 import io.zeebe.logstreams.spi.SnapshotController;
+import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
-import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.logstreams.util.LogStreamReaderRule;
 import io.zeebe.logstreams.util.LogStreamRule;
 import io.zeebe.logstreams.util.LogStreamWriterRule;
@@ -96,9 +96,9 @@ public class StreamProcessorControllerTest {
 
   private ZeebeDb zeebeDb;
   private DbContext dbContext;
-  private StateStorage stateStorage;
   private ActorFuture<Void> openedFuture;
   private CountDownLatch processorCreated;
+  private DataStorage stateStorage;
 
   @Before
   public void setup() throws Exception {
@@ -735,11 +735,11 @@ public class StreamProcessorControllerTest {
     streamProcessor.getContext().getActorControl().call(runnable).join();
   }
 
-  private StateStorage createStateStorage() throws IOException {
+  private DataStorage createStateStorage() throws IOException {
     final File runtimeDirectory = temporaryFolder.newFolder("state-runtime");
     final File snapshotsDirectory = temporaryFolder.newFolder("state-snapshots");
 
-    return new StateStorage(runtimeDirectory, snapshotsDirectory);
+    return new DataStorage(runtimeDirectory, snapshotsDirectory);
   }
 
   private long writeEventAndWaitUntilProcessedOrFailed(DirectBuffer event) {

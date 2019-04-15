@@ -37,8 +37,8 @@ import io.zeebe.logstreams.LogStreams;
 import io.zeebe.logstreams.impl.service.StreamProcessorService;
 import io.zeebe.logstreams.log.LogStreamRecordWriter;
 import io.zeebe.logstreams.log.LoggedEvent;
+import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
-import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.logstreams.util.LogStreamRule;
 import io.zeebe.logstreams.util.LogStreamWriterRule;
 import io.zeebe.util.sched.future.ActorFuture;
@@ -73,7 +73,7 @@ public class StreamProcessorReprocessingTest {
           temporaryFolder,
           logStreamBuilder -> {
             final String logDirectory = logStreamBuilder.getLogDirectory();
-            final StateStorage stateStorage = new StateStorage(logDirectory);
+            final DataStorage stateStorage = new DataStorage(logDirectory);
             stateSnapshotController =
                 new StateSnapshotController(
                     (path) -> {

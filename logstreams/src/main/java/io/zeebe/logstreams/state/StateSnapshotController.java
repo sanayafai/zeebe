@@ -15,29 +15,41 @@
  */
 package io.zeebe.logstreams.state;
 
+import static java.nio.file.StandardOpenOption.CREATE_NEW;
+
 import io.zeebe.db.ZeebeDb;
 import io.zeebe.db.ZeebeDbFactory;
 import io.zeebe.logstreams.impl.Loggers;
+import io.zeebe.logstreams.processor.SnapshotChunk;
+import io.zeebe.logstreams.processor.SnapshotReplication;
 import io.zeebe.logstreams.spi.SnapshotController;
 import io.zeebe.util.FileUtil;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
 import java.util.List;
 import org.slf4j.Logger;
 
 /** Controls how snapshot/recovery operations are performed */
 public class StateSnapshotController implements SnapshotController {
-  private static final Logger LOG = Loggers.ROCKSDB_LOGGER;
+  private static final Logger LOG = Loggers.SNAPSHOT_LOGGER;
 
-  private final StateStorage storage;
+  private final DataStorage storage;
+  private final SnapshotReplication replication;
   private final ZeebeDbFactory zeebeDbFactory;
   private ZeebeDb db;
 
-  public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final StateStorage storage) {
-    this.zeebeDbFactory = rocksDbFactory;
+  public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final DataStorage storage) {
+    this(storage, new NoneSnapshotReplication(), rocksDbFactory);
+  }
+
+  public StateSnapshotController(
+      DataStorage storage, SnapshotReplication replication, ZeebeDbFactory zeebeDbFactory) {
     this.storage = storage;
+    this.replication = replication;
+    this.zeebeDbFactory = zeebeDbFactory;
   }
 
   @Override
@@ -86,6 +98,74 @@ public class StateSnapshotController implements SnapshotController {
         snapshotDir.getAbsolutePath());
 
     Files.move(previousLocation.toPath(), snapshotDir.toPath());
+  }
+
+  public void replicateLatestSnapshot() {
+    final List<File> snapshots = storage.listByPositionDesc();
+
+    if (snapshots != null && !snapshots.isEmpty()) {
+      final File latestSnapshotDirectory = snapshots.get(0);
+      final long snapshotPosition = Long.parseLong(latestSnapshotDirectory.getName());
+
+      final File[] files = latestSnapshotDirectory.listFiles();
+      for (File snapshotChunk : files) {
+        try {
+          final byte[] content = Files.readAllBytes(snapshotChunk.toPath());
+          replication.replicate(
+              new SnapshotChunkImpl(
+                  snapshotPosition, files.length, snapshotChunk.getName(), content));
+        } catch (IOException ioe) {
+          LOG.error(
+              "Unexpected error on reading snapshot chunk from file '{}'.", snapshotChunk, ioe);
+        }
+      }
+    }
+  }
+
+  public void consumeReplicatedSnapshots() {
+    replication.consume(
+        (snapshotChunk -> {
+          final String snapshotName = Long.toString(snapshotChunk.getSnapshotPosition());
+          final File tmpSnapshotDirectory = storage.getTmpSnapshotDirectoryFor(snapshotName);
+
+          if (!tmpSnapshotDirectory.exists()) {
+            tmpSnapshotDirectory.mkdirs();
+          }
+
+          final File snapshotFile = new File(tmpSnapshotDirectory, snapshotChunk.getChunkName());
+          if (!snapshotFile.exists()) {
+            try {
+              Files.write(
+                  snapshotFile.toPath(),
+                  snapshotChunk.getContent(),
+                  CREATE_NEW,
+                  StandardOpenOption.WRITE);
+            } catch (IOException ioe) {
+              LOG.error(
+                  "Unexpected error occurred on writing an snapshot chunk to '{}'.",
+                  snapshotFile,
+                  ioe);
+            }
+
+            try {
+              final int totalChunkCount = snapshotChunk.getTotalCount();
+              final int currentChunks = tmpSnapshotDirectory.listFiles().length;
+
+              if (currentChunks == totalChunkCount) {
+                final File validSnapshotDirectory =
+                    storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
+                Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
+              }
+            } catch (IOException ioe) {
+              LOG.error(
+                  "Unexpected error occurred on moving replicated snapshot from '{}'.",
+                  tmpSnapshotDirectory.toPath(),
+                  ioe);
+            }
+          } else {
+            LOG.warn("Received a snapshot file which already exist '{}'.", snapshotFile);
+          }
+        }));
   }
 
   @Override
@@ -181,5 +261,37 @@ public class StateSnapshotController implements SnapshotController {
 
   public boolean isDbOpened() {
     return db != null;
+  }
+
+  private final class SnapshotChunkImpl implements SnapshotChunk {
+    private final long snapshotPosition;
+    private final int totalCount;
+    private final String chunkName;
+    private final byte[] content;
+
+    SnapshotChunkImpl(long snapshotPosition, int totalCount, String chunkName, byte[] content) {
+      this.snapshotPosition = snapshotPosition;
+      this.totalCount = totalCount;
+      this.chunkName = chunkName;
+      this.content = content;
+    }
+
+    public long getSnapshotPosition() {
+      return snapshotPosition;
+    }
+
+    @Override
+    public String getChunkName() {
+      return chunkName;
+    }
+
+    @Override
+    public int getTotalCount() {
+      return totalCount;
+    }
+
+    public byte[] getContent() {
+      return content;
+    }
   }
 }
