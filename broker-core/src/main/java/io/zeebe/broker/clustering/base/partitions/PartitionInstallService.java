@@ -30,6 +30,7 @@ import static io.zeebe.broker.clustering.base.partitions.PartitionServiceNames.p
 import static io.zeebe.broker.logstreams.LogStreamServiceNames.stateStorageFactoryServiceName;
 import static io.zeebe.logstreams.impl.service.LogStreamServiceNames.distributedLogPartitionServiceName;
 
+import io.atomix.cluster.messaging.ClusterEventService;
 import io.zeebe.broker.Loggers;
 import io.zeebe.broker.clustering.base.raft.RaftPersistentConfiguration;
 import io.zeebe.broker.clustering.base.topology.PartitionInfo;
@@ -60,6 +61,7 @@ public class PartitionInstallService extends Actor
 
   private final RaftPersistentConfiguration configuration;
   private final PartitionInfo partitionInfo;
+  private final ClusterEventService clusterEventService;
 
   private ServiceStartContext startContext;
   private ServiceName<LogStream> logStreamServiceName;
@@ -71,8 +73,10 @@ public class PartitionInstallService extends Actor
   private ActorFuture<PartitionLeaderElection> leaderElectionInstallFuture;
   private PartitionLeaderElection leaderElection;
 
-  public PartitionInstallService(final RaftPersistentConfiguration configuration) {
+  public PartitionInstallService(
+      ClusterEventService clusterEventService, final RaftPersistentConfiguration configuration) {
     this.configuration = configuration;
+    this.clusterEventService = clusterEventService;
     this.partitionInfo =
         new PartitionInfo(configuration.getPartitionId(), configuration.getReplicationFactor());
   }
@@ -167,7 +171,7 @@ public class PartitionInstallService extends Actor
   private void installLeaderPartition(long leaderTerm) {
     LOG.debug(
         "Installing leader partition service for partition {}", partitionInfo.getPartitionId());
-    final Partition partition = new Partition(partitionInfo, RaftState.LEADER);
+    final Partition partition = new Partition(clusterEventService, partitionInfo, RaftState.LEADER);
 
     // Get an instance of DistributedLog
     final DistributedLogstreamPartition distributedLogstreamPartition =
@@ -198,7 +202,8 @@ public class PartitionInstallService extends Actor
   private void installFollowerPartition() {
     LOG.debug(
         "Installing follower partition service for partition {}", partitionInfo.getPartitionId());
-    final Partition partition = new Partition(partitionInfo, RaftState.FOLLOWER);
+    final Partition partition =
+        new Partition(clusterEventService, partitionInfo, RaftState.FOLLOWER);
 
     startContext
         .createService(followerPartitionServiceName, partition)

@@ -50,8 +50,8 @@ import io.zeebe.logstreams.processor.StreamProcessorContext;
 import io.zeebe.logstreams.processor.StreamProcessorController;
 import io.zeebe.logstreams.processor.StreamProcessorFactory;
 import io.zeebe.logstreams.spi.SnapshotController;
+import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
-import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.msgpack.UnpackedObject;
 import io.zeebe.protocol.Protocol;
 import io.zeebe.protocol.clientapi.RecordType;
@@ -146,7 +146,7 @@ public class TestStreams {
       e.printStackTrace();
     }
 
-    final StateStorage stateStorage = new StateStorage(index, snapshots);
+    final DataStorage stateStorage = new DataStorage(index, snapshots);
 
     final LogStream logStream =
         LogStreams.createFsLogStream(partitionId)
@@ -426,7 +426,7 @@ public class TestStreams {
     private StreamProcessorService buildStreamProcessorController() {
       final String name = "processor";
 
-      final StateStorage stateStorage = getStateStorageFactory().create(streamProcessorId, name);
+      final DataStorage stateStorage = getStateStorageFactory().create(streamProcessorId, name);
       currentSnapshotController = spy(new StateSnapshotController(zeebeDbFactory, stateStorage));
 
       return LogStreams.createStreamProcessor(name, streamProcessorId)

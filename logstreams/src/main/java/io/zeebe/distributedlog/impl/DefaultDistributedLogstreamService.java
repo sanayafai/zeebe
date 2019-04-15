@@ -29,7 +29,7 @@ import io.zeebe.logstreams.LogStreams;
 import io.zeebe.logstreams.log.BufferedLogStreamReader;
 import io.zeebe.logstreams.log.LogStream;
 import io.zeebe.logstreams.spi.LogStorage;
-import io.zeebe.logstreams.state.StateStorage;
+import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.servicecontainer.ServiceContainer;
 import java.io.File;
 import java.lang.reflect.Field;
@@ -113,7 +113,7 @@ public class DefaultDistributedLogstreamService
     final File blockIndexDirectory = new File(partitionDirectory, "index");
     blockIndexDirectory.mkdirs();
 
-    final StateStorage stateStorage = new StateStorage(blockIndexDirectory, snapshotDirectory);
+    final DataStorage stateStorage = new DataStorage(blockIndexDirectory, snapshotDirectory);
 
     // A hack to get partitionId from the name
     final String[] splitted = logServiceName.split("-");

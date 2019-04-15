@@ -102,6 +102,7 @@ public class AsyncSnapshotDirector extends Actor {
 
     commitCondition = actor.onCondition(getConditionNameForPosition(), this::onCommitCheck);
     conditionRegistration.accept(commitCondition);
+    snapshotController.consumeReplicatedSnapshots();
   }
 
   @Override
@@ -200,6 +201,8 @@ public class AsyncSnapshotDirector extends Actor {
         } catch (Exception ex) {
           LOG.error(ERROR_MSG_ENSURING_MAX_SNAPSHOT_COUNT, ex);
         }
+
+        snapshotController.replicateLatestSnapshot();
 
       } catch (Exception ex) {
         LOG.error(ERROR_MSG_MOVE_SNAPSHOT, ex);

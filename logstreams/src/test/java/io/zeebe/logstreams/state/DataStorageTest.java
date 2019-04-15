@@ -28,17 +28,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class StateStorageTest {
+public class DataStorageTest {
   @Rule public TemporaryFolder tempFolderRule = new TemporaryFolder();
   @Rule public AutoCloseableRule autoCloseableRule = new AutoCloseableRule();
 
-  private StateStorage storage;
+  private DataStorage storage;
 
   @Before
   public void setup() throws Exception {
     final File snapshotsDirectory = tempFolderRule.newFolder("snapshots");
     final File runtimeDirectory = tempFolderRule.newFolder("runtime");
-    storage = new StateStorage(runtimeDirectory, snapshotsDirectory);
+    storage = new DataStorage(runtimeDirectory, snapshotsDirectory);
   }
 
   @Test
@@ -70,7 +70,7 @@ public class StateStorageTest {
     // given
     createSnapshotDirectory("no");
     createSnapshotDirectory("bad");
-    createSnapshotDirectory(StateStorage.TEMP_SNAPSHOT_DIRECTORY);
+    createSnapshotDirectory(DataStorage.TEMP_SNAPSHOT_DIRECTORY);
     createSnapshotDirectory("1");
     createSnapshotDirectory("0");
     final File[] expected =
@@ -94,7 +94,7 @@ public class StateStorageTest {
     createSnapshotDirectory("bad");
     createSnapshotDirectory("256");
     createSnapshotDirectory("131");
-    createSnapshotDirectory(StateStorage.TEMP_SNAPSHOT_DIRECTORY);
+    createSnapshotDirectory(DataStorage.TEMP_SNAPSHOT_DIRECTORY);
     createSnapshotDirectory("1");
     createSnapshotDirectory("0");
 

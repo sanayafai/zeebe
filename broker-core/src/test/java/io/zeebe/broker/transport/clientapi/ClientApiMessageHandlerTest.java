@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+import io.atomix.cluster.messaging.ClusterEventService;
 import io.zeebe.broker.clustering.base.partitions.Partition;
 import io.zeebe.broker.clustering.base.partitions.RaftState;
 import io.zeebe.broker.clustering.base.topology.PartitionInfo;
@@ -36,7 +37,7 @@ import io.zeebe.logstreams.LogStreams;
 import io.zeebe.logstreams.log.BufferedLogStreamReader;
 import io.zeebe.logstreams.log.LogStream;
 import io.zeebe.logstreams.log.LoggedEvent;
-import io.zeebe.logstreams.state.StateStorage;
+import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.protocol.Protocol;
 import io.zeebe.protocol.clientapi.ErrorCode;
 import io.zeebe.protocol.clientapi.ErrorResponseDecoder;
@@ -118,7 +119,7 @@ public class ClientApiMessageHandlerTest {
       e.printStackTrace();
     }
 
-    final StateStorage stateStorage = new StateStorage(runtime, snapshots);
+    final DataStorage stateStorage = new DataStorage(runtime, snapshots);
 
     final String logName = "test";
 
@@ -186,7 +187,10 @@ public class ClientApiMessageHandlerTest {
     messageHandler = new ClientApiMessageHandler();
 
     final Partition partition =
-        new Partition(new PartitionInfo(LOG_STREAM_PARTITION_ID, 1), RaftState.LEADER) {
+        new Partition(
+            mock(ClusterEventService.class),
+            new PartitionInfo(LOG_STREAM_PARTITION_ID, 1),
+            RaftState.LEADER) {
           @Override
           public LogStream getLogStream() {
             return logStream;
