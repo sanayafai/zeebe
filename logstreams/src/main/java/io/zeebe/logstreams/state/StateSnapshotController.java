@@ -28,18 +28,23 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import org.slf4j.Logger;
 
 /** Controls how snapshot/recovery operations are performed */
 public class StateSnapshotController implements SnapshotController {
+
   private static final Logger LOG = Loggers.SNAPSHOT_LOGGER;
+  public static final String INVALID_FILE_NAME = "INVALID";
 
   private final DataStorage storage;
   private final SnapshotReplication replication;
   private final ZeebeDbFactory zeebeDbFactory;
   private ZeebeDb db;
+  private final MessageDigest sha265;
 
   public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final DataStorage storage) {
     this(storage, new NoneSnapshotReplication(), rocksDbFactory);
@@ -50,6 +55,12 @@ public class StateSnapshotController implements SnapshotController {
     this.storage = storage;
     this.replication = replication;
     this.zeebeDbFactory = zeebeDbFactory;
+
+    try {
+      sha265 = MessageDigest.getInstance("SHA265");
+    } catch (Exception ex) {
+      throw new RuntimeException("Problem on resolving sha256 algorithm", ex);
+    }
   }
 
   @Override
@@ -111,9 +122,11 @@ public class StateSnapshotController implements SnapshotController {
       for (File snapshotChunk : files) {
         try {
           final byte[] content = Files.readAllBytes(snapshotChunk.toPath());
+          final byte[] checksum = sha265.digest(content);
+
           replication.replicate(
               new SnapshotChunkImpl(
-                  snapshotPosition, files.length, snapshotChunk.getName(), content));
+                  snapshotPosition, files.length, snapshotChunk.getName(), content, checksum));
         } catch (IOException ioe) {
           LOG.error(
               "Unexpected error on reading snapshot chunk from file '{}'.", snapshotChunk, ioe);
@@ -128,44 +141,106 @@ public class StateSnapshotController implements SnapshotController {
           final String snapshotName = Long.toString(snapshotChunk.getSnapshotPosition());
           final File tmpSnapshotDirectory = storage.getTmpSnapshotDirectoryFor(snapshotName);
 
-          if (!tmpSnapshotDirectory.exists()) {
-            tmpSnapshotDirectory.mkdirs();
+          final boolean directoryNotCreated = tmpSnapshotDirectory.mkdirs();
+          final boolean directoryNotExists = !tmpSnapshotDirectory.exists();
+          if (directoryNotCreated && directoryNotExists) {
+            return;
+          }
+
+          final File[] invalidMarkerFiles =
+              tmpSnapshotDirectory.listFiles(f -> f.getName().equalsIgnoreCase(INVALID_FILE_NAME));
+          if (invalidMarkerFiles != null && invalidMarkerFiles.length > 0) {
+            LOG.debug(
+                "Received an snapshot chunk, which corresponds to the snapshot {} which was already marked as invalid.",
+                snapshotChunk.getSnapshotPosition());
+            return;
           }
 
           final File snapshotFile = new File(tmpSnapshotDirectory, snapshotChunk.getChunkName());
-          if (!snapshotFile.exists()) {
-            try {
-              Files.write(
-                  snapshotFile.toPath(),
-                  snapshotChunk.getContent(),
-                  CREATE_NEW,
-                  StandardOpenOption.WRITE);
-            } catch (IOException ioe) {
-              LOG.error(
-                  "Unexpected error occurred on writing an snapshot chunk to '{}'.",
-                  snapshotFile,
-                  ioe);
-            }
-
-            try {
-              final int totalChunkCount = snapshotChunk.getTotalCount();
-              final int currentChunks = tmpSnapshotDirectory.listFiles().length;
-
-              if (currentChunks == totalChunkCount) {
-                final File validSnapshotDirectory =
-                    storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
-                Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
-              }
-            } catch (IOException ioe) {
-              LOG.error(
-                  "Unexpected error occurred on moving replicated snapshot from '{}'.",
-                  tmpSnapshotDirectory.toPath(),
-                  ioe);
-            }
-          } else {
+          if (snapshotFile.exists()) {
             LOG.warn("Received a snapshot file which already exist '{}'.", snapshotFile);
+            return;
+          }
+
+          writeSnapshotChunkFile(snapshotChunk, snapshotFile);
+
+          final int totalChunkCount = snapshotChunk.getTotalCount();
+          final File[] chunkFiles = tmpSnapshotDirectory.listFiles();
+          if (chunkFiles != null && chunkFiles.length == totalChunkCount) {
+            tryToValidateReceivedSnapshot(snapshotChunk, tmpSnapshotDirectory);
           }
         }));
+  }
+
+  private void writeSnapshotChunkFile(SnapshotChunk snapshotChunk, File snapshotFile) {
+    final byte[] checksum = sha265.digest(snapshotChunk.getContent());
+    final boolean equalChecksum = Arrays.equals(checksum, snapshotChunk.getChecksum());
+    if (equalChecksum) {
+      try {
+        Files.write(
+            snapshotFile.toPath(),
+            snapshotChunk.getContent(),
+            CREATE_NEW,
+            StandardOpenOption.WRITE);
+      } catch (IOException ioe) {
+        LOG.error(
+            "Unexpected error occurred on writing an snapshot chunk to '{}'.", snapshotFile, ioe);
+      }
+    } else {
+      markSnapshotAsInvalid(snapshotChunk, snapshotFile);
+    }
+  }
+
+  private void markSnapshotAsInvalid(SnapshotChunk snapshotChunk, File snapshotFile) {
+    LOG.warn(
+        "Checksum does not match for snapshot chunk {} - snapshot {}",
+        snapshotChunk.getChunkName(),
+        snapshotChunk.getSnapshotPosition());
+
+    final File invalidMarkerFile = new File(snapshotFile.getParentFile(), INVALID_FILE_NAME);
+    try {
+      Files.write(invalidMarkerFile.toPath(), new byte[0], CREATE_NEW, StandardOpenOption.WRITE);
+    } catch (IOException ioe) {
+      LOG.error(
+          "Unexpected error occurred on writing an invalid marker file at '{}'.",
+          invalidMarkerFile,
+          ioe);
+    }
+  }
+
+  private void tryToValidateReceivedSnapshot(
+      SnapshotChunk snapshotChunk, File tmpSnapshotDirectory) {
+    if (verifySnapshot(tmpSnapshotDirectory)) {
+      try {
+        final File validSnapshotDirectory =
+            storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
+        Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
+      } catch (IOException ioe) {
+        LOG.error(
+            "Unexpected error occurred on moving replicated snapshot from '{}'.",
+            tmpSnapshotDirectory.toPath(),
+            ioe);
+      }
+    } else {
+      try {
+        FileUtil.deleteFolder(tmpSnapshotDirectory.toPath());
+      } catch (IOException ioe) {
+        LOG.error(
+            "Unexpected error occurred on removing invalid snapshot directory '{}'.",
+            tmpSnapshotDirectory.toPath(),
+            ioe);
+      }
+    }
+  }
+
+  private boolean verifySnapshot(File snapshotDirectory) {
+    try {
+      zeebeDbFactory.createDb(snapshotDirectory).close();
+    } catch (Exception ex) {
+      // not valid
+      return false;
+    }
+    return true;
   }
 
   @Override
@@ -268,12 +343,15 @@ public class StateSnapshotController implements SnapshotController {
     private final int totalCount;
     private final String chunkName;
     private final byte[] content;
+    private final byte[] checksum;
 
-    SnapshotChunkImpl(long snapshotPosition, int totalCount, String chunkName, byte[] content) {
+    SnapshotChunkImpl(
+        long snapshotPosition, int totalCount, String chunkName, byte[] content, byte[] checksum) {
       this.snapshotPosition = snapshotPosition;
       this.totalCount = totalCount;
       this.chunkName = chunkName;
       this.content = content;
+      this.checksum = checksum;
     }
 
     public long getSnapshotPosition() {
@@ -290,8 +368,14 @@ public class StateSnapshotController implements SnapshotController {
       return totalCount;
     }
 
+    @Override
     public byte[] getContent() {
       return content;
+    }
+
+    @Override
+    public byte[] getChecksum() {
+      return checksum;
     }
   }
 }
