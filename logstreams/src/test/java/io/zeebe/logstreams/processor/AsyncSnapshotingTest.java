@@ -131,7 +131,7 @@ public class AsyncSnapshotingTest {
     inOrder.verify(snapshotController, timeout(TIMEOUT).times(1)).takeTempSnapshot();
     inOrder.verify(snapshotController, timeout(TIMEOUT).times(1)).moveValidSnapshot(25);
     inOrder.verify(snapshotController, timeout(TIMEOUT).times(1)).ensureMaxSnapshotCount(3);
-    inOrder.verify(snapshotController, timeout(TIMEOUT).times(1)).replicateLatestSnapshot();
+    inOrder.verify(snapshotController, timeout(TIMEOUT).times(1)).replicateLatestSnapshot(any());
     inOrder.verifyNoMoreInteractions();
   }
 

@@ -202,7 +202,7 @@ public class AsyncSnapshotDirector extends Actor {
           LOG.error(ERROR_MSG_ENSURING_MAX_SNAPSHOT_COUNT, ex);
         }
 
-        snapshotController.replicateLatestSnapshot();
+        snapshotController.replicateLatestSnapshot(actor::submit);
 
       } catch (Exception ex) {
         LOG.error(ERROR_MSG_MOVE_SNAPSHOT, ex);

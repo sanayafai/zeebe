@@ -77,7 +77,7 @@ public class ReplicateSnapshotControllerTest {
     replicatorSnapshotController.takeSnapshot(1);
 
     // when
-    replicatorSnapshotController.replicateLatestSnapshot();
+    replicatorSnapshotController.replicateLatestSnapshot(Runnable::run);
 
     // then
     final List<SnapshotChunk> replicatedChunks = replicator.replicatedChunks;
@@ -100,7 +100,7 @@ public class ReplicateSnapshotControllerTest {
     replicatorSnapshotController.takeSnapshot(1);
 
     // when
-    replicatorSnapshotController.replicateLatestSnapshot();
+    replicatorSnapshotController.replicateLatestSnapshot(Runnable::run);
 
     // then
     final String key = "test";

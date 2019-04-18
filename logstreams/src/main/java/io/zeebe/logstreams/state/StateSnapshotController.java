@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 
 /** Controls how snapshot/recovery operations are performed */
@@ -100,7 +101,7 @@ public class StateSnapshotController implements SnapshotController {
     Files.move(previousLocation.toPath(), snapshotDir.toPath());
   }
 
-  public void replicateLatestSnapshot() {
+  public void replicateLatestSnapshot(Consumer<Runnable> executor) {
     final List<File> snapshots = storage.listByPositionDesc();
 
     if (snapshots != null && !snapshots.isEmpty()) {
@@ -109,18 +110,20 @@ public class StateSnapshotController implements SnapshotController {
 
       final File[] files = latestSnapshotDirectory.listFiles();
       for (File snapshotChunk : files) {
-        try {
-          final byte[] content = Files.readAllBytes(snapshotChunk.toPath());
-          replication.replicate(
-              new SnapshotChunkImpl(
-                  snapshotPosition, files.length, snapshotChunk.getName(), content));
-        } catch (IOException ioe) {
-          LOG.error(
-              "Unexpected error on reading snapshot chunk from file '{}'.", snapshotChunk, ioe);
-          // we abort the snapshot replication
-          // follower can wait on next or request one if he needs a snapshot
-          return;
-        }
+        executor.accept(
+            () -> {
+              try {
+                final byte[] content = Files.readAllBytes(snapshotChunk.toPath());
+                replication.replicate(
+                    new SnapshotChunkImpl(
+                        snapshotPosition, files.length, snapshotChunk.getName(), content));
+              } catch (IOException ioe) {
+                LOG.error(
+                    "Unexpected error on reading snapshot chunk from file '{}'.",
+                    snapshotChunk,
+                    ioe);
+              }
+            });
       }
     }
   }
