@@ -29,7 +29,7 @@ import io.zeebe.distributedlog.impl.DistributedLogstreamServiceConfig;
 import io.zeebe.logstreams.LogStreams;
 import io.zeebe.logstreams.impl.LogStreamBuilder;
 import io.zeebe.logstreams.log.LogStream;
-import io.zeebe.logstreams.state.DataStorage;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.servicecontainer.ServiceContainer;
 import io.zeebe.servicecontainer.impl.ServiceContainerImpl;
 import io.zeebe.util.sched.ActorScheduler;
@@ -65,7 +65,7 @@ public class LogStreamRule extends ExternalResource {
   private final Consumer<LogStreamBuilder> streamBuilder;
 
   private LogStreamBuilder builder;
-  private DataStorage stateStorage;
+  private StateStorage stateStorage;
 
   public LogStreamRule(final TemporaryFolder temporaryFolder) {
     this(DEFAULT_NAME, temporaryFolder);
@@ -104,7 +104,7 @@ public class LogStreamRule extends ExternalResource {
       LOG.error("Couldn't create blockIndex/snapshots directory", e);
     }
 
-    stateStorage = new DataStorage(blockIndexDirectory, snapshotDirectory);
+    stateStorage = new StateStorage(blockIndexDirectory, snapshotDirectory);
     builder =
         LogStreams.createFsLogStream(0)
             .logDirectory(temporaryFolder.getRoot().getAbsolutePath())
@@ -227,7 +227,7 @@ public class LogStreamRule extends ExternalResource {
     return snapshotDirectory;
   }
 
-  public DataStorage getStateStorage() {
+  public StateStorage getStateStorage() {
     return stateStorage;
   }
 }

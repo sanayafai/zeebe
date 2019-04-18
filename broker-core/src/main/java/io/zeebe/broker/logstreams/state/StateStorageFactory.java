@@ -18,11 +18,11 @@
 package io.zeebe.broker.logstreams.state;
 
 import io.zeebe.logstreams.processor.StreamProcessorContext;
-import io.zeebe.logstreams.state.DataStorage;
+import io.zeebe.logstreams.state.StateStorage;
 import java.io.File;
 
 /**
- * This class may eventually be superseded by a more accurate DataStorage class local to the broker
+ * This class may eventually be superseded by a more accurate StateStorage class local to the broker
  * core module if it ever needs more functionality than strictly creating stream processor specific
  * storage classes (e.g. listing all of them for regular maintenance jobs). If you find yourself
  * adding such functionality consider refactoring the whole thing.
@@ -37,7 +37,7 @@ public class StateStorageFactory {
     this.rootDirectory = rootDirectory;
   }
 
-  public DataStorage create(final int processorId, final String processorName) {
+  public StateStorage create(final int processorId, final String processorName) {
     final String name = String.format("%d_%s", processorId, processorName);
     final File processorDirectory = new File(rootDirectory, name);
 
@@ -52,10 +52,10 @@ public class StateStorageFactory {
       snapshotsDirectory.mkdir();
     }
 
-    return new DataStorage(runtimeDirectory, snapshotsDirectory);
+    return new StateStorage(runtimeDirectory, snapshotsDirectory);
   }
 
-  public DataStorage create(final StreamProcessorContext context) {
+  public StateStorage create(final StreamProcessorContext context) {
     return create(context.getId(), context.getName());
   }
 }

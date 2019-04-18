@@ -32,7 +32,7 @@ import io.zeebe.distributedlog.impl.DistributedLogstreamPartition;
 import io.zeebe.distributedlog.impl.DistributedLogstreamServiceConfig;
 import io.zeebe.logstreams.impl.LogStreamBuilder;
 import io.zeebe.logstreams.impl.log.fs.FsLogSegmentDescriptor;
-import io.zeebe.logstreams.state.DataStorage;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.servicecontainer.testing.ServiceContainerRule;
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.util.buffer.BufferUtil;
@@ -79,8 +79,8 @@ public class LogStreamDeleteTest {
   private long fourthPosition;
 
   protected LogStream buildLogStream(final Consumer<LogStreamBuilder> streamConfig) {
-    final DataStorage stateStorage =
-        new DataStorage(indexFolder.getRoot(), snapshotFolder.getRoot());
+    final StateStorage stateStorage =
+        new StateStorage(indexFolder.getRoot(), snapshotFolder.getRoot());
 
     final LogStreamBuilder builder = new LogStreamBuilder(PARTITION_ID);
     builder

@@ -22,8 +22,8 @@ import io.zeebe.db.impl.rocksdb.ZeebeRocksDbFactory;
 import io.zeebe.logstreams.impl.log.index.LogBlockColumnFamilies;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndexContext;
-import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
+import io.zeebe.logstreams.state.StateStorage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -54,8 +54,8 @@ public class LogBlockIndexTest {
   private void startBlockIndexDb() {
     final ZeebeDbFactory<LogBlockColumnFamilies> dbFactory =
         ZeebeRocksDbFactory.newFactory(LogBlockColumnFamilies.class);
-    final DataStorage stateStorage =
-        new DataStorage(runtimeDirectory.getRoot(), snapshotDirectory.getRoot());
+    final StateStorage stateStorage =
+        new StateStorage(runtimeDirectory.getRoot(), snapshotDirectory.getRoot());
     final StateSnapshotController controller = new StateSnapshotController(dbFactory, stateStorage);
 
     blockIndex = new LogBlockIndex(controller);

@@ -25,8 +25,8 @@ import static org.mockito.Mockito.when;
 import io.zeebe.db.impl.DefaultColumnFamily;
 import io.zeebe.db.impl.rocksdb.ZeebeRocksDbFactory;
 import io.zeebe.logstreams.log.LogStream;
-import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.logstreams.util.LogStreamRule;
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.util.sched.ActorScheduler;
@@ -64,7 +64,7 @@ public class AsyncSnapshotingTest {
   public void setup() throws IOException {
     final File snapshotsDirectory = tempFolderRule.newFolder("snapshots");
     final File runtimeDirectory = tempFolderRule.newFolder("runtime");
-    final DataStorage storage = new DataStorage(runtimeDirectory, snapshotsDirectory);
+    final StateStorage storage = new StateStorage(runtimeDirectory, snapshotsDirectory);
 
     snapshotController =
         new StateSnapshotController(

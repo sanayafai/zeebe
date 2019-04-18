@@ -21,17 +21,17 @@ import io.zeebe.db.ZeebeDbFactory;
 import io.zeebe.db.impl.rocksdb.ZeebeRocksDbFactory;
 import io.zeebe.logstreams.impl.log.index.LogBlockColumnFamilies;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
-import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.servicecontainer.Service;
 import io.zeebe.servicecontainer.ServiceStartContext;
 import io.zeebe.servicecontainer.ServiceStopContext;
 
 public class LogBlockIndexService implements Service<LogBlockIndex> {
   private LogBlockIndex logBlockIndex;
-  private final DataStorage stateStorage;
+  private final StateStorage stateStorage;
 
-  public LogBlockIndexService(DataStorage stateStorage) {
+  public LogBlockIndexService(StateStorage stateStorage) {
     this.stateStorage = stateStorage;
   }
 

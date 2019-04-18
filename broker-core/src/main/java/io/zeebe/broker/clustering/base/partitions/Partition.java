@@ -28,8 +28,8 @@ import io.zeebe.broker.logstreams.state.StateReplication;
 import io.zeebe.broker.logstreams.state.StateStorageFactory;
 import io.zeebe.logstreams.log.LogStream;
 import io.zeebe.logstreams.spi.SnapshotController;
-import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.servicecontainer.Injector;
 import io.zeebe.servicecontainer.Service;
 import io.zeebe.servicecontainer.ServiceStartContext;
@@ -69,18 +69,18 @@ public class Partition implements Service<Partition> {
     final StateStorageFactory stateStorageFactory = stateStorageFactoryInjector.getValue();
 
     final String exporterProcessorName = PROCESSOR_NAME;
-    final DataStorage exporterDataStorage =
+    final StateStorage exporterStateStorage =
         stateStorageFactory.create(EXPORTER_PROCESSOR_ID, exporterProcessorName);
     exporterStateReplication =
         new StateReplication(eventService, partitionId, exporterProcessorName);
     exporterSnapshotController =
         new StateSnapshotController(
-            exporterDataStorage,
+            exporterStateStorage,
             exporterStateReplication,
             DefaultZeebeDbFactory.defaultFactory(ExporterColumnFamilies.class));
 
     final String streamProcessorName = ZbStreamProcessorService.PROCESSOR_NAME;
-    final DataStorage stateStorage = stateStorageFactory.create(partitionId, streamProcessorName);
+    final StateStorage stateStorage = stateStorageFactory.create(partitionId, streamProcessorName);
     processorStateReplication =
         new StateReplication(eventService, partitionId, streamProcessorName);
     processorSnapshotController =

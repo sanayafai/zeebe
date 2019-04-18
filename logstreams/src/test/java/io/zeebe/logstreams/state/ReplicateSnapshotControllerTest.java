@@ -46,12 +46,12 @@ public class ReplicateSnapshotControllerTest {
   public void setup() throws IOException {
     final File runtimeDirectory = tempFolderRule.newFolder("runtime");
     final File snapshotsDirectory = tempFolderRule.newFolder("snapshots");
-    final DataStorage storage = new DataStorage(runtimeDirectory, snapshotsDirectory);
+    final StateStorage storage = new StateStorage(runtimeDirectory, snapshotsDirectory);
 
     final File receiverRuntimeDirectory = tempFolderRule.newFolder("runtime-receiver");
     final File receiverSnapshotsDirectory = tempFolderRule.newFolder("snapshots-receiver");
-    final DataStorage receiverStorage =
-        new DataStorage(receiverRuntimeDirectory, receiverSnapshotsDirectory);
+    final StateStorage receiverStorage =
+        new StateStorage(receiverRuntimeDirectory, receiverSnapshotsDirectory);
 
     replicator = new Replicator();
     replicatorSnapshotController =

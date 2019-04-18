@@ -36,17 +36,17 @@ import org.slf4j.Logger;
 public class StateSnapshotController implements SnapshotController {
   private static final Logger LOG = Loggers.SNAPSHOT_LOGGER;
 
-  private final DataStorage storage;
+  private final StateStorage storage;
   private final SnapshotReplication replication;
   private final ZeebeDbFactory zeebeDbFactory;
   private ZeebeDb db;
 
-  public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final DataStorage storage) {
+  public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final StateStorage storage) {
     this(storage, new NoneSnapshotReplication(), rocksDbFactory);
   }
 
   public StateSnapshotController(
-      DataStorage storage, SnapshotReplication replication, ZeebeDbFactory zeebeDbFactory) {
+      StateStorage storage, SnapshotReplication replication, ZeebeDbFactory zeebeDbFactory) {
     this.storage = storage;
     this.replication = replication;
     this.zeebeDbFactory = zeebeDbFactory;

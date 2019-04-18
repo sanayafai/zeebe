@@ -29,8 +29,8 @@ import io.zeebe.broker.logstreams.state.DefaultZeebeDbFactory;
 import io.zeebe.broker.logstreams.state.StateStorageFactory;
 import io.zeebe.client.ZeebeClient;
 import io.zeebe.client.api.commands.BrokerInfo;
-import io.zeebe.logstreams.state.DataStorage;
 import io.zeebe.logstreams.state.StateSnapshotController;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.model.bpmn.Bpmn;
 import io.zeebe.model.bpmn.BpmnModelInstance;
 import java.io.File;
@@ -130,24 +130,25 @@ public class SnapshotReplicationTest {
   private void validateSnapshots(String dataRoot) throws Exception {
     final StateStorageFactory factory =
         new StateStorageFactory(new File(dataRoot, "partition-1/state"));
-    final DataStorage exporterDataStorage =
+    final StateStorage exporterStateStorage =
         factory.create(
             ExporterManagerService.EXPORTER_PROCESSOR_ID, ExporterManagerService.PROCESSOR_NAME);
 
-    waitUntil(() -> exporterDataStorage.listByPositionAsc().size() > 0);
+    waitUntil(() -> exporterStateStorage.listByPositionAsc().size() > 0);
 
     final StateSnapshotController exportSnapshotController =
         new StateSnapshotController(
             DefaultZeebeDbFactory.defaultFactory(ExporterColumnFamilies.class),
-            exporterDataStorage);
+            exporterStateStorage);
 
-    final DataStorage processorDataStorage =
+    final StateStorage processorStateStorage =
         factory.create(1, ZbStreamProcessorService.PROCESSOR_NAME);
 
-    waitUntil(() -> processorDataStorage.listByPositionAsc().size() > 0);
+    waitUntil(() -> processorStateStorage.listByPositionAsc().size() > 0);
 
     final StateSnapshotController processorSnapshotController =
-        new StateSnapshotController(DefaultZeebeDbFactory.DEFAULT_DB_FACTORY, processorDataStorage);
+        new StateSnapshotController(
+            DefaultZeebeDbFactory.DEFAULT_DB_FACTORY, processorStateStorage);
 
     // expect no exception
     assertThat(exportSnapshotController.recover()).isGreaterThan(0);

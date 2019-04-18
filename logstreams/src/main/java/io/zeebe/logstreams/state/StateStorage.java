@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 
 /** Handles how snapshots/databases are stored on the file system. */
-public class DataStorage {
+public class StateStorage {
 
   private static final Logger LOG = Loggers.ROCKSDB_LOGGER;
 
@@ -37,13 +37,13 @@ public class DataStorage {
   private final File snapshotsDirectory;
   private File tmpSnapshotDirectory;
 
-  public DataStorage(final String rootDirectory) {
+  public StateStorage(final String rootDirectory) {
     this.runtimeDirectory = new File(rootDirectory, DEFAULT_RUNTIME_DIRECTORY);
     this.snapshotsDirectory = new File(rootDirectory, DEFAULT_SNAPSHOTS_DIRECTORY);
     initTempSnapshotDirectory();
   }
 
-  public DataStorage(final File runtimeDirectory, final File snapshotsDirectory) {
+  public StateStorage(final File runtimeDirectory, final File snapshotsDirectory) {
     this.runtimeDirectory = runtimeDirectory;
     this.snapshotsDirectory = snapshotsDirectory;
     initTempSnapshotDirectory();
@@ -110,7 +110,8 @@ public class DataStorage {
   }
 
   public List<File> listByPositionAsc() {
-    return list().stream()
+    return list()
+        .stream()
         .sorted(Comparator.comparingLong(f -> Long.parseLong(f.getName())))
         .collect(Collectors.toList());
   }

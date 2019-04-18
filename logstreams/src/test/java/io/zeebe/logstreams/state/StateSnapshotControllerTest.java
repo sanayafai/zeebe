@@ -38,13 +38,13 @@ public class StateSnapshotControllerTest {
   @Rule public AutoCloseableRule autoCloseableRule = new AutoCloseableRule();
 
   private StateSnapshotController snapshotController;
-  private DataStorage storage;
+  private StateStorage storage;
 
   @Before
   public void setup() throws IOException {
     final File snapshotsDirectory = tempFolderRule.newFolder("snapshots");
     final File runtimeDirectory = tempFolderRule.newFolder("runtime");
-    storage = new DataStorage(runtimeDirectory, snapshotsDirectory);
+    storage = new StateStorage(runtimeDirectory, snapshotsDirectory);
 
     snapshotController =
         new StateSnapshotController(

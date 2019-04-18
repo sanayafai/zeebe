@@ -32,7 +32,7 @@ import io.zeebe.logstreams.impl.service.LogBlockIndexWriterService;
 import io.zeebe.logstreams.impl.service.LogStreamService;
 import io.zeebe.logstreams.log.LogStream;
 import io.zeebe.logstreams.spi.LogStorage;
-import io.zeebe.logstreams.state.DataStorage;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.servicecontainer.CompositeServiceBuilder;
 import io.zeebe.servicecontainer.ServiceContainer;
 import io.zeebe.servicecontainer.ServiceName;
@@ -70,7 +70,7 @@ public class LogStreamBuilder {
   protected final ActorConditions onCommitPositionUpdatedConditions = new ActorConditions();
 
   protected Function<FsLogStorage, FsLogStorage> logStorageStubber = Function.identity();
-  private DataStorage stateStorage;
+  private StateStorage stateStorage;
 
   public LogStreamBuilder(final int partitionId) {
     this.partitionId = partitionId;
@@ -131,7 +131,7 @@ public class LogStreamBuilder {
     return this;
   }
 
-  public LogStreamBuilder indexStateStorage(DataStorage stateStorage) {
+  public LogStreamBuilder indexStateStorage(StateStorage stateStorage) {
     this.stateStorage = stateStorage;
     return this;
   }
@@ -188,7 +188,7 @@ public class LogStreamBuilder {
     return snapshotPeriod;
   }
 
-  public DataStorage getStateStorage() {
+  public StateStorage getStateStorage() {
     return stateStorage;
   }
 

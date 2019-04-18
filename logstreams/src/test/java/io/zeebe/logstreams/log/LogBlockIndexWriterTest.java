@@ -25,7 +25,7 @@ import io.zeebe.logstreams.impl.LogEntryDescriptor;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndex;
 import io.zeebe.logstreams.impl.log.index.LogBlockIndexContext;
 import io.zeebe.logstreams.spi.LogStorage;
-import io.zeebe.logstreams.state.DataStorage;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.logstreams.util.LogStreamRule;
 import io.zeebe.logstreams.util.LogStreamWriterRule;
 import io.zeebe.util.metrics.Metric;
@@ -68,7 +68,7 @@ public class LogBlockIndexWriterTest {
 
   private LogBlockIndex blockIndex;
   private LogStorage logStorage;
-  private DataStorage stateStorage;
+  private StateStorage stateStorage;
   private LogBlockIndexContext indexContext;
 
   @Before

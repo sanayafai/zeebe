@@ -30,7 +30,7 @@ import io.zeebe.distributedlog.impl.DefaultDistributedLogstreamService;
 import io.zeebe.distributedlog.impl.DistributedLogstreamPartition;
 import io.zeebe.distributedlog.impl.DistributedLogstreamServiceConfig;
 import io.zeebe.logstreams.impl.LogStreamBuilder;
-import io.zeebe.logstreams.state.DataStorage;
+import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.servicecontainer.testing.ServiceContainerRule;
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.util.sched.testing.ActorSchedulerRule;
@@ -69,8 +69,8 @@ public class LogStreamTest {
           .around(closeables);
 
   protected LogStream buildLogStream(final Consumer<LogStreamBuilder> streamConfig) {
-    final DataStorage stateStorage =
-        new DataStorage(indexFolder.getRoot(), snapshotFolder.getRoot());
+    final StateStorage stateStorage =
+        new StateStorage(indexFolder.getRoot(), snapshotFolder.getRoot());
 
     final LogStreamBuilder builder = new LogStreamBuilder(PARTITION_ID);
     builder
