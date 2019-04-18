@@ -117,6 +117,9 @@ public class StateSnapshotController implements SnapshotController {
         } catch (IOException ioe) {
           LOG.error(
               "Unexpected error on reading snapshot chunk from file '{}'.", snapshotChunk, ioe);
+          // we abort the snapshot replication
+          // follower can wait on next or request one if he needs a snapshot
+          return;
         }
       }
     }
@@ -134,38 +137,38 @@ public class StateSnapshotController implements SnapshotController {
 
           final File snapshotFile = new File(tmpSnapshotDirectory, snapshotChunk.getChunkName());
           if (!snapshotFile.exists()) {
-            try {
-              Files.write(
-                  snapshotFile.toPath(),
-                  snapshotChunk.getContent(),
-                  CREATE_NEW,
-                  StandardOpenOption.WRITE);
-            } catch (IOException ioe) {
-              LOG.error(
-                  "Unexpected error occurred on writing an snapshot chunk to '{}'.",
-                  snapshotFile,
-                  ioe);
-            }
-
-            try {
-              final int totalChunkCount = snapshotChunk.getTotalCount();
-              final int currentChunks = tmpSnapshotDirectory.listFiles().length;
-
-              if (currentChunks == totalChunkCount) {
-                final File validSnapshotDirectory =
-                    storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
-                Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
-              }
-            } catch (IOException ioe) {
-              LOG.error(
-                  "Unexpected error occurred on moving replicated snapshot from '{}'.",
-                  tmpSnapshotDirectory.toPath(),
-                  ioe);
-            }
+            writeReceivedSnapshotChunk(snapshotChunk, tmpSnapshotDirectory, snapshotFile);
           } else {
-            LOG.warn("Received a snapshot file which already exist '{}'.", snapshotFile);
+            LOG.debug("Received a snapshot file which already exist '{}'.", snapshotFile);
           }
         }));
+  }
+
+  private void writeReceivedSnapshotChunk(
+      SnapshotChunk snapshotChunk, File tmpSnapshotDirectory, File snapshotFile) {
+    try {
+      Files.write(
+          snapshotFile.toPath(), snapshotChunk.getContent(), CREATE_NEW, StandardOpenOption.WRITE);
+    } catch (IOException ioe) {
+      LOG.error(
+          "Unexpected error occurred on writing an snapshot chunk to '{}'.", snapshotFile, ioe);
+    }
+
+    try {
+      final int totalChunkCount = snapshotChunk.getTotalCount();
+      final int currentChunks = tmpSnapshotDirectory.listFiles().length;
+
+      if (currentChunks == totalChunkCount) {
+        final File validSnapshotDirectory =
+            storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
+        Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
+      }
+    } catch (IOException ioe) {
+      LOG.error(
+          "Unexpected error occurred on moving replicated snapshot from '{}'.",
+          tmpSnapshotDirectory.toPath(),
+          ioe);
+    }
   }
 
   @Override
