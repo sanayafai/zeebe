@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.agrona.DirectBuffer;
-import org.agrona.ExpandableArrayBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 import org.slf4j.Logger;
 
@@ -37,7 +36,6 @@ public class StateReplication implements SnapshotReplication {
 
   private final String replicationTopic;
 
-  private final ExpandableArrayBuffer writeBuffer = new ExpandableArrayBuffer();
   private final DirectBuffer readBuffer = new UnsafeBuffer(0, 0);
   private final ClusterEventService eventService;
   private ExecutorService executorService;
@@ -58,32 +56,9 @@ public class StateReplication implements SnapshotReplication {
               replicationTopic,
               s.getChunkName(),
               s.getSnapshotPosition());
-          int offset = 0;
-          writeBuffer.putLong(offset, s.getSnapshotPosition());
-          offset += Long.BYTES;
 
-          writeBuffer.putInt(offset, s.getTotalCount());
-          offset += Integer.BYTES;
-
-          final String chunkName = s.getChunkName();
-          final int chunkNameLength = chunkName.length();
-          writeBuffer.putInt(offset, chunkNameLength);
-          offset += Integer.BYTES;
-
-          writeBuffer.putBytes(offset, chunkName.getBytes());
-          offset += chunkNameLength;
-
-          final byte[] content = s.getContent();
-          final int contentLength = content.length;
-          writeBuffer.putInt(offset, contentLength);
-          offset += Integer.BYTES;
-
-          writeBuffer.putBytes(offset, s.getContent());
-          offset += contentLength;
-
-          final byte[] message = new byte[offset];
-          writeBuffer.getBytes(0, message);
-          return message;
+          final SnapshotChunkImpl chunkImpl = new SnapshotChunkImpl(s);
+          return chunkImpl.toBytes();
         });
   }
 
@@ -94,13 +69,14 @@ public class StateReplication implements SnapshotReplication {
         replicationTopic,
         (bytes -> {
           readBuffer.wrap(bytes);
-          final SnapshotChunkView snapshotChunkView = new SnapshotChunkView(readBuffer);
+          final SnapshotChunkImpl chunk = new SnapshotChunkImpl();
+          chunk.wrap(readBuffer, 0, bytes.length);
           LOG.debug(
               "Received on topic {} replicated snapshot chunk {} for snapshot pos {}.",
               replicationTopic,
-              snapshotChunkView.getChunkName(),
-              snapshotChunkView.getSnapshotPosition());
-          return snapshotChunkView;
+              chunk.getChunkName(),
+              chunk.getSnapshotPosition());
+          return chunk;
         }),
         consumer,
         executorService);
@@ -111,49 +87,6 @@ public class StateReplication implements SnapshotReplication {
     if (executorService != null) {
       executorService.shutdownNow();
       executorService = null;
-    }
-  }
-
-  private static final class SnapshotChunkView implements SnapshotChunk {
-    private final DirectBuffer view;
-
-    SnapshotChunkView(DirectBuffer view) {
-      this.view = view;
-    }
-
-    @Override
-    public long getSnapshotPosition() {
-      final int offset = 0;
-      return view.getLong(offset);
-    }
-
-    @Override
-    public int getTotalCount() {
-      final int offset = Long.BYTES;
-      return view.getInt(offset);
-    }
-
-    @Override
-    public String getChunkName() {
-      int offset = Long.BYTES + Integer.BYTES;
-      final int chunkLength = view.getInt(offset);
-      offset += Integer.BYTES;
-
-      return view.getStringWithoutLengthAscii(offset, chunkLength);
-    }
-
-    @Override
-    public byte[] getContent() {
-      int offset = Long.BYTES + Integer.BYTES;
-      final int chunkLength = view.getInt(offset);
-      offset += Integer.BYTES + chunkLength;
-
-      final int contentLength = view.getInt(offset);
-      offset += Integer.BYTES;
-
-      final byte[] content = new byte[contentLength];
-      view.getBytes(offset, content);
-      return content;
     }
   }
 }
