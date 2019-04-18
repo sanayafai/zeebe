@@ -17,7 +17,7 @@
  */
 package io.zeebe.broker.logstreams.state;
 
-import static io.zeebe.broker.Loggers.STATE_LOGGER;
+import static io.zeebe.broker.Loggers.STREAM_PROCESSING;
 
 import io.atomix.cluster.messaging.ClusterEventService;
 import io.zeebe.logstreams.processor.SnapshotChunk;
@@ -32,7 +32,7 @@ import org.slf4j.Logger;
 public class StateReplication implements SnapshotReplication {
 
   public static final String REPLICATION_TOPIC_FORMAT = "replication-%d-%s";
-  private static final Logger LOG = STATE_LOGGER;
+  private static final Logger LOG = STREAM_PROCESSING;
 
   private final String replicationTopic;
 
