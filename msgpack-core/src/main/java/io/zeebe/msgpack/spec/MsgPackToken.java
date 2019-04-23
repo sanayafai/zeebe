@@ -21,6 +21,8 @@ import org.agrona.concurrent.UnsafeBuffer;
 public class MsgPackToken {
   public static final MsgPackToken NIL = new MsgPackToken();
 
+  private static final byte[] EMPTY_BYTE = new byte[0];
+
   protected static final int MAX_MAP_ELEMENTS = 0x3fff_ffff;
 
   protected MsgPackType type = MsgPackType.NIL;
@@ -62,7 +64,17 @@ public class MsgPackToken {
   }
 
   public void setValue(DirectBuffer buffer, int offset, int length) {
-    this.valueBuffer.wrap(buffer, offset, length);
+    if (offset < buffer.capacity() && offset + length <= buffer.capacity()) {
+      this.valueBuffer.wrap(buffer, offset, length);
+    } else if (offset == buffer.capacity() && length == 0) {
+      this.valueBuffer.wrap(EMPTY_BYTE);
+    } else {
+      final int result = offset + length;
+      throw new MsgpackReaderException(
+          String.format(
+              "Reading %d bytes past buffer capacity(%d) in range [%d:%d)",
+              result - buffer.capacity(), buffer.capacity(), offset, result));
+    }
   }
 
   public void setValue(double value) {
