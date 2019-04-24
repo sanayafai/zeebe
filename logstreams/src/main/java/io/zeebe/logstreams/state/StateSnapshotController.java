@@ -43,11 +43,11 @@ public class StateSnapshotController implements SnapshotController {
   private ZeebeDb db;
 
   public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final StateStorage storage) {
-    this(storage, new NoneSnapshotReplication(), rocksDbFactory);
+    this(rocksDbFactory, storage, new NoneSnapshotReplication());
   }
 
   public StateSnapshotController(
-      StateStorage storage, SnapshotReplication replication, ZeebeDbFactory zeebeDbFactory) {
+      ZeebeDbFactory zeebeDbFactory, StateStorage storage, SnapshotReplication replication) {
     this.storage = storage;
     this.replication = replication;
     this.zeebeDbFactory = zeebeDbFactory;
@@ -169,9 +169,16 @@ public class StateSnapshotController implements SnapshotController {
         final File validSnapshotDirectory =
             storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
         LOG.debug(
-            "Received all snapshot chunks, snapshot is valid. Move to {}",
+            "Received all snapshot chunks ({}/{}), snapshot is valid. Move to {}",
+            currentChunks,
+            totalChunkCount,
             validSnapshotDirectory.toPath());
         Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
+      } else {
+        LOG.debug(
+            "Waiting for more snapshot chunks, currently have {}/{}.",
+            currentChunks,
+            totalChunkCount);
       }
     } catch (IOException ioe) {
       LOG.error(

@@ -56,10 +56,10 @@ public class ReplicateSnapshotControllerTest {
     replicator = new Replicator();
     replicatorSnapshotController =
         new StateSnapshotController(
-            storage, replicator, ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class));
+            ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class), storage, replicator);
     receiverSnapshotController =
         new StateSnapshotController(
-            receiverStorage, replicator, ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class));
+            ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class), receiverStorage, replicator);
 
     autoCloseableRule.manage(replicatorSnapshotController);
     autoCloseableRule.manage(receiverSnapshotController);
@@ -94,10 +94,44 @@ public class ReplicateSnapshotControllerTest {
   }
 
   @Test
+  public void shouldNotReplicateWithoutSnapshot() {
+    // given
+
+    // when
+    replicatorSnapshotController.replicateLatestSnapshot(Runnable::run);
+
+    // then
+    final List<SnapshotChunk> replicatedChunks = replicator.replicatedChunks;
+    final int totalCount = replicatedChunks.size();
+    assertThat(totalCount).isEqualTo(0);
+  }
+
+  @Test
   public void shouldReceiveSnapshotChunks() throws Exception {
     // given
     receiverSnapshotController.consumeReplicatedSnapshots();
     replicatorSnapshotController.takeSnapshot(1);
+
+    // when
+    replicatorSnapshotController.replicateLatestSnapshot(Runnable::run);
+
+    // then
+    final String key = "test";
+    final RocksDBWrapper wrapper = new RocksDBWrapper();
+    final long recoveredSnapshot = receiverSnapshotController.recover();
+    assertThat(recoveredSnapshot).isEqualTo(1);
+
+    wrapper.wrap(receiverSnapshotController.openDb());
+    final int valueFromSnapshot = wrapper.getInt(key);
+    assertThat(valueFromSnapshot).isEqualTo(0xCAFE);
+  }
+
+  @Test
+  public void shouldNotFailOnReplicatingAndReceivingTwice() throws Exception {
+    // given
+    receiverSnapshotController.consumeReplicatedSnapshots();
+    replicatorSnapshotController.takeSnapshot(1);
+    replicatorSnapshotController.replicateLatestSnapshot(Runnable::run);
 
     // when
     replicatorSnapshotController.replicateLatestSnapshot(Runnable::run);

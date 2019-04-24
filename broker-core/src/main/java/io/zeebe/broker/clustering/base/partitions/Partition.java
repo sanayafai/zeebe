@@ -75,9 +75,9 @@ public class Partition implements Service<Partition> {
         new StateReplication(eventService, partitionId, exporterProcessorName);
     exporterSnapshotController =
         new StateSnapshotController(
+            DefaultZeebeDbFactory.defaultFactory(ExporterColumnFamilies.class),
             exporterStateStorage,
-            exporterStateReplication,
-            DefaultZeebeDbFactory.defaultFactory(ExporterColumnFamilies.class));
+            exporterStateReplication);
 
     final String streamProcessorName = ZbStreamProcessorService.PROCESSOR_NAME;
     final StateStorage stateStorage = stateStorageFactory.create(partitionId, streamProcessorName);
@@ -85,7 +85,7 @@ public class Partition implements Service<Partition> {
         new StateReplication(eventService, partitionId, streamProcessorName);
     processorSnapshotController =
         new StateSnapshotController(
-            stateStorage, processorStateReplication, DefaultZeebeDbFactory.DEFAULT_DB_FACTORY);
+            DefaultZeebeDbFactory.DEFAULT_DB_FACTORY, stateStorage, processorStateReplication);
 
     if (state == RaftState.FOLLOWER) {
       processorSnapshotController.consumeReplicatedSnapshots();
