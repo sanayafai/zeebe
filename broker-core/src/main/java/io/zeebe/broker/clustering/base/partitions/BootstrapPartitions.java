@@ -65,9 +65,7 @@ public class BootstrapPartitions implements Service<Void> {
 
     final MemberId nodeId = atomix.getMembershipService().getLocalMember().id();
     final List<Partition> owningPartitions =
-        partitionGroup
-            .getPartitions()
-            .stream()
+        partitionGroup.getPartitions().stream()
             .filter(partition -> partition.members().contains(nodeId))
             .collect(Collectors.toList());
 
