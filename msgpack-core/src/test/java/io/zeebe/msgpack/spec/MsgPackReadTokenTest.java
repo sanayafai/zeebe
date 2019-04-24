@@ -220,10 +220,10 @@ public class MsgPackReadTokenTest {
             doAssert((t) -> assertThat(t.getIntegerValue()).isEqualTo(-32))
           },
           {
-            "zero-width fixstr",
+            "zero length fixstr",
             given((b) -> b.add(0xa0)),
             STRING,
-            doAssert((t) -> assertThat(t.getValueBuffer().capacity()).isEqualTo(0))
+            doAssert((t) -> assertThatBuffer(t.getValueBuffer()).hasCapacity(0))
           },
         });
   }
