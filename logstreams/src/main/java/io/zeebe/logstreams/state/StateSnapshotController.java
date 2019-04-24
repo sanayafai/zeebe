@@ -106,10 +106,12 @@ public class StateSnapshotController implements SnapshotController {
 
     if (snapshots != null && !snapshots.isEmpty()) {
       final File latestSnapshotDirectory = snapshots.get(0);
+      LOG.debug("Start replicating latest snapshot {}", latestSnapshotDirectory.toPath());
       final long snapshotPosition = Long.parseLong(latestSnapshotDirectory.getName());
 
       final File[] files = latestSnapshotDirectory.listFiles();
       for (File snapshotChunk : files) {
+        LOG.debug("Replicate snapshot chunk {}", snapshotChunk.toPath());
         executor.accept(
             () -> {
               try {
@@ -132,6 +134,7 @@ public class StateSnapshotController implements SnapshotController {
     replication.consume(
         (snapshotChunk -> {
           final String snapshotName = Long.toString(snapshotChunk.getSnapshotPosition());
+          LOG.debug("Consume snapshot chunk {}", snapshotName);
           final File tmpSnapshotDirectory = storage.getTmpSnapshotDirectoryFor(snapshotName);
 
           if (!tmpSnapshotDirectory.exists()) {
@@ -152,6 +155,7 @@ public class StateSnapshotController implements SnapshotController {
     try {
       Files.write(
           snapshotFile.toPath(), snapshotChunk.getContent(), CREATE_NEW, StandardOpenOption.WRITE);
+      LOG.debug("Wrote replicated snapshot chunk to file {}", snapshotFile.toPath());
     } catch (IOException ioe) {
       LOG.error(
           "Unexpected error occurred on writing an snapshot chunk to '{}'.", snapshotFile, ioe);
@@ -164,6 +168,9 @@ public class StateSnapshotController implements SnapshotController {
       if (currentChunks == totalChunkCount) {
         final File validSnapshotDirectory =
             storage.getSnapshotDirectoryFor(snapshotChunk.getSnapshotPosition());
+        LOG.debug(
+            "Received all snapshot chunks, snapshot is valid. Move to {}",
+            validSnapshotDirectory.toPath());
         Files.move(tmpSnapshotDirectory.toPath(), validSnapshotDirectory.toPath());
       }
     } catch (IOException ioe) {

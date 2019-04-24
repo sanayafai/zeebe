@@ -64,7 +64,7 @@ public class StateReplication implements SnapshotReplication {
 
   @Override
   public void consume(Consumer<SnapshotChunk> consumer) {
-    executorService = Executors.newSingleThreadExecutor();
+    executorService = Executors.newSingleThreadExecutor((r) -> new Thread(r, replicationTopic));
     eventService.subscribe(
         replicationTopic,
         (bytes -> {

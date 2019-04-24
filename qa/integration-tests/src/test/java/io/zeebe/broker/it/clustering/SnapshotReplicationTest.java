@@ -15,30 +15,25 @@
  */
 package io.zeebe.broker.it.clustering;
 
-import static io.zeebe.broker.logstreams.state.StateReplication.REPLICATION_TOPIC_FORMAT;
 import static io.zeebe.test.util.TestUtil.waitUntil;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.atomix.cluster.AtomixCluster;
 import io.zeebe.broker.Broker;
-import io.zeebe.broker.exporter.ExporterManagerService;
-import io.zeebe.broker.exporter.stream.ExporterColumnFamilies;
+import io.zeebe.broker.Loggers;
 import io.zeebe.broker.it.GrpcClientRule;
-import io.zeebe.broker.logstreams.ZbStreamProcessorService;
-import io.zeebe.broker.logstreams.state.DefaultZeebeDbFactory;
-import io.zeebe.broker.logstreams.state.StateStorageFactory;
 import io.zeebe.client.ZeebeClient;
-import io.zeebe.client.api.commands.BrokerInfo;
-import io.zeebe.logstreams.state.StateSnapshotController;
-import io.zeebe.logstreams.state.StateStorage;
 import io.zeebe.model.bpmn.Bpmn;
 import io.zeebe.model.bpmn.BpmnModelInstance;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.Adler32;
+import java.util.zip.CheckedInputStream;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,7 +53,7 @@ public class SnapshotReplicationTest {
           3,
           3,
           brokerCfg -> {
-            brokerCfg.getData().setSnapshotPeriod("2s");
+            brokerCfg.getData().setSnapshotPeriod("1s");
           });
   public GrpcClientRule clientRule = new GrpcClientRule(clusteringRule);
 
@@ -77,81 +72,82 @@ public class SnapshotReplicationTest {
   public void shouldReplicateSnapshots() throws Exception {
     // given
     client.newDeployCommand().addWorkflowModel(WORKFLOW, "workflow.bpmn").send().join();
-    final CountDownLatch snapshotLatch = new CountDownLatch(2);
-    subscribeToReplication(snapshotLatch);
+    final int leaderNodeId = clusteringRule.getLeaderForPartition(1).getNodeId();
+    final Broker leader = clusteringRule.getBroker(leaderNodeId);
 
     // when - snapshot
-    snapshotLatch.await(5_000L, TimeUnit.MILLISECONDS);
+    waitForValidSnapshotAtBroker(leader);
+
+    final List<Broker> otherBrokers = clusteringRule.getOtherBrokerObjects(leaderNodeId);
+    for (Broker broker : otherBrokers) {
+      waitForValidSnapshotAtBroker(broker);
+    }
 
     // then - replicated
-    final BrokerInfo leaderForPartition = clusteringRule.getLeaderForPartition(1);
-
     final Collection<Broker> brokers = clusteringRule.getBrokers();
+    final Map<Integer, Map<String, Long>> brokerSnapshotChecksums = new HashMap<>();
     for (Broker broker : brokers) {
-      final boolean isNoLeader =
-          broker.getConfig().getCluster().getNodeId() != leaderForPartition.getNodeId();
-      if (isNoLeader) {
-        final String dataRoot = broker.getConfig().getData().getDirectories().get(0);
-        validateSnapshots(dataRoot);
-      }
+      final Map<String, Long> checksums = createSnapshotDirectoryChecksums(broker);
+      brokerSnapshotChecksums.put(broker.getConfig().getCluster().getNodeId(), checksums);
     }
+
+    final Map<String, Long> checksumFirstNode = brokerSnapshotChecksums.get(0);
+    assertThat(checksumFirstNode).isEqualTo(brokerSnapshotChecksums.get(1));
+    assertThat(checksumFirstNode).isEqualTo(brokerSnapshotChecksums.get(2));
   }
 
-  private void subscribeToReplication(CountDownLatch snapshotLatch) {
-    final AtomixCluster atomixCluster = clusteringRule.getAtomixCluster();
-    final ExecutorService executorService = Executors.newSingleThreadExecutor();
-    final String exporterTopicReplication =
-        String.format(REPLICATION_TOPIC_FORMAT, 1, ExporterManagerService.PROCESSOR_NAME);
-    atomixCluster
-        .getEventService()
-        .subscribe(
-            exporterTopicReplication,
-            bytes -> {
-              snapshotLatch.countDown();
-              return bytes;
-            },
-            bytes -> {},
-            executorService);
+  private void waitForValidSnapshotAtBroker(Broker broker) {
+    final String dataDir = broker.getConfig().getData().getDirectories().get(0);
+    final File snapshotsDir =
+        new File(dataDir, "partition-1/state/1_zb-stream-processor/snapshots");
 
-    final String processorTopicReplication =
-        String.format(REPLICATION_TOPIC_FORMAT, 1, ZbStreamProcessorService.PROCESSOR_NAME);
-    atomixCluster
-        .getEventService()
-        .subscribe(
-            processorTopicReplication,
-            bytes -> {
-              snapshotLatch.countDown();
-              return bytes;
-            },
-            bytes -> {},
-            executorService);
+    waitUntil(
+        () -> Arrays.stream(snapshotsDir.listFiles()).anyMatch(f -> !f.getName().contains("tmp")));
   }
 
-  private void validateSnapshots(String dataRoot) throws Exception {
-    final StateStorageFactory factory =
-        new StateStorageFactory(new File(dataRoot, "partition-1/state"));
-    final StateStorage exporterStateStorage =
-        factory.create(
-            ExporterManagerService.EXPORTER_PROCESSOR_ID, ExporterManagerService.PROCESSOR_NAME);
+  private Map<String, Long> createSnapshotDirectoryChecksums(Broker broker) throws Exception {
+    final String dataDir = broker.getConfig().getData().getDirectories().get(0);
+    final File snapshotsDir =
+        new File(dataDir, "partition-1/state/1_zb-stream-processor/snapshots");
 
-    waitUntil(() -> exporterStateStorage.listByPositionAsc().size() > 0);
+    final Map<String, Long> checksums = createChecksumsForSnapshotDirectory(snapshotsDir);
 
-    final StateSnapshotController exportSnapshotController =
-        new StateSnapshotController(
-            DefaultZeebeDbFactory.defaultFactory(ExporterColumnFamilies.class),
-            exporterStateStorage);
+    assertThat(checksums.size()).isGreaterThan(0);
+    return checksums;
+  }
 
-    final StateStorage processorStateStorage =
-        factory.create(1, ZbStreamProcessorService.PROCESSOR_NAME);
+  private Map<String, Long> createChecksumsForSnapshotDirectory(File snapshotDirectory) {
+    final Map<String, Long> checksums = new HashMap<>();
+    final File[] snapshotDirs = snapshotDirectory.listFiles();
+    if (snapshotDirs != null) {
+      Arrays.stream(snapshotDirs)
+          .filter(f -> !f.getName().contains("tmp"))
+          .forEach(
+              validSnapshotDir -> {
+                final File[] snapshotFiles = validSnapshotDir.listFiles();
+                if (snapshotFiles != null) {
+                  for (File snapshotFile : snapshotFiles) {
+                    final long checksum = createCheckSumForFile(snapshotFile);
 
-    waitUntil(() -> processorStateStorage.listByPositionAsc().size() > 0);
+                    Loggers.STREAM_PROCESSING.debug(
+                        "Created checksum {} for file {}", checksum, snapshotFile);
+                    checksums.put(snapshotFile.getName(), checksum);
+                  }
+                }
+              });
+    }
 
-    final StateSnapshotController processorSnapshotController =
-        new StateSnapshotController(
-            DefaultZeebeDbFactory.DEFAULT_DB_FACTORY, processorStateStorage);
+    return checksums;
+  }
 
-    // expect no exception
-    assertThat(exportSnapshotController.recover()).isGreaterThan(0);
-    assertThat(processorSnapshotController.recover()).isGreaterThan(0);
+  private long createCheckSumForFile(File snapshotFile) {
+    try (CheckedInputStream checkedInputStream =
+        new CheckedInputStream(Files.newInputStream(snapshotFile.toPath()), new Adler32())) {
+      while (checkedInputStream.skip(512) > 0) {}
+
+      return checkedInputStream.getChecksum().getValue();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

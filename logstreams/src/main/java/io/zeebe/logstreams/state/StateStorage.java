@@ -110,8 +110,7 @@ public class StateStorage {
   }
 
   public List<File> listByPositionAsc() {
-    return list()
-        .stream()
+    return list().stream()
         .sorted(Comparator.comparingLong(f -> Long.parseLong(f.getName())))
         .collect(Collectors.toList());
   }
