@@ -39,14 +39,15 @@ public class StateSnapshotController implements SnapshotController {
   private final ReplicationController replicationController;
 
   public StateSnapshotController(final ZeebeDbFactory rocksDbFactory, final StateStorage storage) {
-    this(rocksDbFactory, storage, new NoneSnapshotReplication(), 1);
+    this(rocksDbFactory, storage, new NoneSnapshotReplication(), 1, pos -> {});
   }
 
   public StateSnapshotController(
       ZeebeDbFactory zeebeDbFactory,
       StateStorage storage,
       SnapshotReplication replication,
-      int maxSnapshots) {
+      int maxSnapshots,
+      Consumer<Long> snapshotReplicatedCallback) {
     this.storage = storage;
     this.zeebeDbFactory = zeebeDbFactory;
     replicationController =
@@ -59,7 +60,8 @@ public class StateSnapshotController implements SnapshotController {
               } catch (IOException ioe) {
                 LOG.error("Unexpected error occurred on ensuring max snapshot count.", ioe);
               }
-            });
+            },
+            snapshotReplicatedCallback);
   }
 
   @Override

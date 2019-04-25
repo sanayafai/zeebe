@@ -21,12 +21,15 @@ import static io.zeebe.broker.exporter.ExporterManagerService.EXPORTER_PROCESSOR
 import static io.zeebe.broker.exporter.ExporterManagerService.PROCESSOR_NAME;
 
 import io.atomix.cluster.messaging.ClusterEventService;
+import io.zeebe.broker.Loggers;
 import io.zeebe.broker.exporter.stream.ExporterColumnFamilies;
+import io.zeebe.broker.exporter.stream.ExporterStreamProcessorState;
 import io.zeebe.broker.logstreams.ZbStreamProcessorService;
 import io.zeebe.broker.logstreams.state.DefaultZeebeDbFactory;
 import io.zeebe.broker.logstreams.state.StateReplication;
 import io.zeebe.broker.logstreams.state.StateStorageFactory;
 import io.zeebe.broker.system.configuration.BrokerCfg;
+import io.zeebe.db.ZeebeDb;
 import io.zeebe.logstreams.log.LogStream;
 import io.zeebe.logstreams.spi.SnapshotController;
 import io.zeebe.logstreams.state.StateSnapshotController;
@@ -35,10 +38,14 @@ import io.zeebe.servicecontainer.Injector;
 import io.zeebe.servicecontainer.Service;
 import io.zeebe.servicecontainer.ServiceStartContext;
 import io.zeebe.servicecontainer.ServiceStopContext;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /** Service representing a partition. */
 public class Partition implements Service<Partition> {
   public static final String PARTITION_NAME_FORMAT = "raft-atomix-partition-%d";
+  public static final String ROCKS_DB_ERROR = "Unexpected error occurred while %s";
   private final ClusterEventService eventService;
   private final BrokerCfg brokerCfg;
   private StateReplication processorStateReplication;
@@ -50,9 +57,7 @@ public class Partition implements Service<Partition> {
 
   private final Injector<LogStream> logStreamInjector = new Injector<>();
   private final Injector<StateStorageFactory> stateStorageFactoryInjector = new Injector<>();
-
   private final int partitionId;
-
   private final RaftState state;
 
   private LogStream logStream;
@@ -85,23 +90,66 @@ public class Partition implements Service<Partition> {
             DefaultZeebeDbFactory.defaultFactory(ExporterColumnFamilies.class),
             exporterStateStorage,
             exporterStateReplication,
-            brokerCfg.getData().getMaxSnapshots());
+            brokerCfg.getData().getMaxSnapshots(),
+            pos -> {});
 
     final String streamProcessorName = ZbStreamProcessorService.PROCESSOR_NAME;
     final StateStorage stateStorage = stateStorageFactory.create(partitionId, streamProcessorName);
     processorStateReplication =
         new StateReplication(eventService, partitionId, streamProcessorName);
+
+    Consumer<Long> snapshotReplicatedCallback = pos -> {};
+    if (state == RaftState.FOLLOWER) {
+      logStream.setExporterPositionSupplier(this::getMinimumReplicatedExportedPosition);
+      snapshotReplicatedCallback = logStream::delete;
+    }
+
     processorSnapshotController =
         new StateSnapshotController(
             DefaultZeebeDbFactory.DEFAULT_DB_FACTORY,
             stateStorage,
             processorStateReplication,
-            brokerCfg.getData().getMaxSnapshots());
+            brokerCfg.getData().getMaxSnapshots(),
+            snapshotReplicatedCallback);
 
     if (state == RaftState.FOLLOWER) {
       processorSnapshotController.consumeReplicatedSnapshots();
       exporterSnapshotController.consumeReplicatedSnapshots();
     }
+  }
+
+  private long getMinimumReplicatedExportedPosition() {
+    try {
+      exporterSnapshotController.recover();
+      final ZeebeDb zeebeDb = exporterSnapshotController.openDb();
+      final ExporterStreamProcessorState exporterState =
+          new ExporterStreamProcessorState(zeebeDb, zeebeDb.createContext());
+
+      final AtomicLong minimumPosition = new AtomicLong(-1);
+      final AtomicBoolean firstIteration = new AtomicBoolean(true);
+
+      exporterState.visitPositions(
+          (id, pos) -> {
+            if (firstIteration.get() || pos < minimumPosition.get()) {
+              minimumPosition.set(pos);
+              firstIteration.set(false);
+            }
+          });
+
+      return minimumPosition.get();
+    } catch (Exception e) {
+      Loggers.CLUSTERING_LOGGER.error(
+          String.format(ROCKS_DB_ERROR, "obtaining the minimum exported position at a follower"),
+          e);
+    } finally {
+      try {
+        exporterSnapshotController.close();
+      } catch (Exception e) {
+        Loggers.CLUSTERING_LOGGER.error(String.format(ROCKS_DB_ERROR, "closing the DB"), e);
+      }
+    }
+
+    return -1;
   }
 
   @Override

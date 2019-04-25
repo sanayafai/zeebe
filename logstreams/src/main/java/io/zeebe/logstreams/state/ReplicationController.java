@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.function.Consumer;
 import java.util.zip.CRC32;
 import org.agrona.collections.Long2LongHashMap;
 import org.slf4j.Logger;
@@ -40,12 +41,17 @@ final class ReplicationController {
   private final Long2LongHashMap receivedSnapshots = new Long2LongHashMap(MISSING_SNAPSHOT);
   private final StateStorage storage;
   private final Runnable ensureMaxSnapshotCount;
+  private final Consumer<Long> deleteDataCallback;
 
   ReplicationController(
-      SnapshotReplication replication, StateStorage storage, Runnable ensureMaxSnapshotCount) {
+      SnapshotReplication replication,
+      StateStorage storage,
+      Runnable ensureMaxSnapshotCount,
+      final Consumer<Long> deleteDataCallback) {
     this.replication = replication;
     this.storage = storage;
     this.ensureMaxSnapshotCount = ensureMaxSnapshotCount;
+    this.deleteDataCallback = deleteDataCallback;
   }
 
   private static long createChecksum(byte[] content) {
@@ -160,6 +166,7 @@ final class ReplicationController {
           totalChunkCount,
           validSnapshotDirectory.toPath());
       tryToMarkSnapshotAsValid(snapshotChunk, tmpSnapshotDirectory, validSnapshotDirectory);
+      deleteDataCallback.accept(snapshotChunk.getSnapshotPosition());
     } else {
       LOG.debug(
           "Waiting for more snapshot chunks, currently have {}/{}.",

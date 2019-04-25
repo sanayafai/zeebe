@@ -51,13 +51,18 @@ public class FailingSnapshotChunkReplicationTest {
 
     replicatorSnapshotController =
         new StateSnapshotController(
-            ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class), storage, replicator, 1);
+            ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class),
+            storage,
+            replicator,
+            1,
+            pos -> {});
     receiverSnapshotController =
         new StateSnapshotController(
             ZeebeRocksDbFactory.newFactory(DefaultColumnFamily.class),
             receiverStorage,
             replicator,
-            1);
+            1,
+            pos -> {});
 
     autoCloseableRule.manage(replicatorSnapshotController);
     autoCloseableRule.manage(receiverSnapshotController);
