@@ -74,7 +74,7 @@ public class Partition implements Service<Partition> {
 
   @Override
   public void start(final ServiceStartContext startContext) {
-    final boolean isSingleBroker = brokerCfg.getCluster().getClusterSize() == 1;
+    final boolean noReplication = brokerCfg.getCluster().getReplicationFactor() == 1;
 
     logStream = logStreamInjector.getValue();
     final StateStorageFactory stateStorageFactory = stateStorageFactoryInjector.getValue();
@@ -83,7 +83,7 @@ public class Partition implements Service<Partition> {
     final StateStorage exporterStateStorage =
         stateStorageFactory.create(EXPORTER_PROCESSOR_ID, exporterProcessorName);
     exporterStateReplication =
-        isSingleBroker
+        noReplication
             ? new NoneSnapshotReplication()
             : new StateReplication(eventService, partitionId, exporterProcessorName);
     exporterSnapshotController =
@@ -96,7 +96,7 @@ public class Partition implements Service<Partition> {
     final String streamProcessorName = ZbStreamProcessorService.PROCESSOR_NAME;
     final StateStorage stateStorage = stateStorageFactory.create(partitionId, streamProcessorName);
     processorStateReplication =
-        isSingleBroker
+        noReplication
             ? new NoneSnapshotReplication()
             : new StateReplication(eventService, partitionId, streamProcessorName);
     processorSnapshotController =
